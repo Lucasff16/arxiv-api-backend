@@ -3,6 +3,7 @@ import requests
 import feedparser
 import json
 import time
+import signal
 
 app = Flask(__name__)
 
@@ -306,17 +307,20 @@ def handle_generate_stream(request_data):
                 "done": True
             }) + "\n\n"
     
-    response = Response(
+    # Configurar os headers para SSE corretamente
+    headers = {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'X-Accel-Buffering': 'no',
+        'Access-Control-Allow-Origin': '*'
+    }
+    
+    # Retornar a resposta com o stream
+    return Response(
         stream_with_context(generate()),
-        mimetype='text/event-stream',
-        headers={
-            'Cache-Control': 'no-cache',
-            'Connection': 'keep-alive',
-            'Content-Type': 'text/event-stream',
-            'Access-Control-Allow-Origin': '*'
-        }
+        headers=headers
     )
-    return response
 
 def handle_generate(request_data):
     """Processa uma requisição de geração no formato MCP sem streaming."""
@@ -399,5 +403,34 @@ def handle_generate(request_data):
             "done": True
         })
 
+# Rota de teste SSE simples para verificar compatibilidade
+@app.route('/sse-test', methods=['GET'])
+def sse_test():
+    def generate():
+        try:
+            count = 0
+            while True:
+                json_data = json.dumps({
+                    "time": time.strftime("%H:%M:%S"),
+                    "count": count
+                })
+                yield f"data: {json_data}\n\n"
+                count += 1
+                time.sleep(2)
+        except GeneratorExit:
+            print("Cliente fechou a conexão")
+    
+    return Response(
+        stream_with_context(generate()),
+        headers={
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+            'Access-Control-Allow-Origin': '*'
+        }
+    )
+
 if __name__ == '__main__':
-    app.run(debug=True) 
+    # Configurar tratamento de sinal para encerramento limpo
+    signal.signal(signal.SIGINT, lambda s, f: exit(0))
+    app.run(debug=True, threaded=True) 
