@@ -172,4 +172,10 @@ Para mais detalhes sobre os operadores de busca, consulte a [documentação ofic
 
 ## Limitações
 
-Esta API é um wrapper simples para a API oficial do arXiv. Ela está sujeita às mesmas limitações e restrições da API original, como o limite de taxa de requisições. Para projetos em produção, considere implementar mecanismos de cache e limitação de taxa. 
+Esta API é um wrapper simples para a API oficial do arXiv. Ela está sujeita às mesmas limitações e restrições da API original, como o limite de taxa de requisições. Para projetos em produção, considere implementar mecanismos de cache e limitação de taxa.
+
+## Atualizações
+
+- **10/04/2023**: Implementação do servidor MCP para integração com o Cursor
+- **10/04/2023**: Adição de suporte a streaming SSE (Server-Sent Events)
+- **10/04/2023**: Reinício do backend para correção de problemas 
