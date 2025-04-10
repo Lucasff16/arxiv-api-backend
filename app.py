@@ -1,13 +1,23 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, Response
 import requests
 import feedparser
+import json
+import time
 
 app = Flask(__name__)
+
+# Configuração CORS para permitir solicitações do Cursor
+@app.after_request
+def add_cors_headers(response):
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
+    response.headers['Access-Control-Allow-Methods'] = 'GET,POST,OPTIONS'
+    return response
 
 @app.route('/', methods=['GET'])
 def home():
     return jsonify({
-        "message": "API de busca no arXiv",
+        "message": "API de busca no arXiv - MCP Server",
         "status": "online"
     })
 
@@ -16,7 +26,8 @@ def api_info():
     return jsonify({
         "message": "API de busca no arXiv",
         "endpoints": {
-            "search": "/api/search?query=TERMO_DE_BUSCA&start=0&max_results=10&sort_by=relevance&sort_order=descending"
+            "search": "/api/search?query=TERMO_DE_BUSCA&start=0&max_results=10&sort_by=relevance&sort_order=descending",
+            "mcp": "/mcp - Endpoint para protocolo MCP do Cursor"
         }
     })
 
@@ -119,6 +130,129 @@ def search():
         return jsonify({"error": f"Erro ao acessar a API do arXiv: {str(e)}"}), 500
     except Exception as e:
         return jsonify({"error": f"Erro ao processar a resposta: {str(e)}"}), 500
+
+# Endpoints do Model Context Protocol (MCP)
+@app.route('/mcp', methods=['OPTIONS'])
+def mcp_options():
+    return Response(status=200)
+
+@app.route('/mcp', methods=['POST'])
+def mcp_handler():
+    """Endpoint principal para o protocolo MCP."""
+    try:
+        request_data = request.json
+        
+        # Tratamento específico para o tipo de chamada MCP
+        if 'type' not in request_data:
+            return jsonify({"error": "Campo 'type' não encontrado na requisição"}), 400
+        
+        # Verificar o tipo de requisição MCP
+        if request_data['type'] == 'metadata':
+            return handle_metadata()
+        elif request_data['type'] == 'generate':
+            return handle_generate(request_data)
+        else:
+            return jsonify({"error": f"Tipo de requisição MCP não suportado: {request_data['type']}"}), 400
+            
+    except Exception as e:
+        return jsonify({"error": f"Erro ao processar a requisição MCP: {str(e)}"}), 500
+
+def handle_metadata():
+    """Fornece metadados sobre o servidor MCP."""
+    metadata = {
+        "type": "metadata_response",
+        "metadata": {
+            "name": "ArXiv API Search",
+            "description": "API para buscar artigos científicos no repositório arXiv",
+            "version": "1.0.0",
+            "author": "Lucasff16",
+            "capabilities": {
+                "search": True,
+                "streaming": False
+            }
+        }
+    }
+    return jsonify(metadata)
+
+def handle_generate(request_data):
+    """Processa uma requisição de geração no formato MCP."""
+    if 'input' not in request_data:
+        return jsonify({"error": "Campo 'input' não encontrado na requisição"}), 400
+    
+    input_text = request_data.get('input', '')
+    
+    # Extrair a consulta do texto de entrada
+    # Se o texto começa com "buscar" ou "procurar", extrair a consulta
+    query = None
+    if input_text.lower().startswith(("buscar ", "procurar ", "pesquisar ", "search ")):
+        query = input_text.split(" ", 1)[1]
+    else:
+        # Caso contrário, usar o texto completo como consulta
+        query = input_text
+    
+    # Buscar no arXiv
+    try:
+        url = "https://export.arxiv.org/api/query"
+        params = {
+            "search_query": f"all:{query}",
+            "start": 0,
+            "max_results": 5
+        }
+        
+        response = requests.get(url, params=params)
+        response.raise_for_status()
+        
+        feed = feedparser.parse(response.text)
+        
+        # Formatar resultados em texto
+        results_text = f"Resultados da busca por '{query}' no arXiv:\n\n"
+        
+        if len(feed.entries) == 0:
+            results_text += "Nenhum resultado encontrado."
+        else:
+            for i, entry in enumerate(feed.entries, 1):
+                title = entry.title.replace("\n", " ") if "title" in entry else "Sem título"
+                
+                # Processar autores
+                authors = []
+                if 'authors' in entry:
+                    for author in entry.authors:
+                        if 'name' in author:
+                            authors.append(author.name)
+                authors_text = ", ".join(authors) if authors else "Autores não disponíveis"
+                
+                # Obter link
+                link = entry.link if "link" in entry else None
+                
+                # Extrair categorias
+                categories = []
+                if 'tags' in entry:
+                    for tag in entry.tags:
+                        if 'term' in tag:
+                            categories.append(tag.term)
+                categories_text = ", ".join(categories) if categories else "Categorias não disponíveis"
+                
+                results_text += f"{i}. {title}\n"
+                results_text += f"   Autores: {authors_text}\n"
+                results_text += f"   Categorias: {categories_text}\n"
+                results_text += f"   Link: {link}\n\n"
+        
+        # Montar resposta no formato MCP
+        mcp_response = {
+            "type": "generate_response",
+            "response": results_text,
+            "done": True
+        }
+        
+        return jsonify(mcp_response)
+        
+    except Exception as e:
+        error_response = {
+            "type": "generate_response",
+            "response": f"Erro ao buscar no arXiv: {str(e)}",
+            "done": True
+        }
+        return jsonify(error_response)
 
 if __name__ == '__main__':
     app.run() 

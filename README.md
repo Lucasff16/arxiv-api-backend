@@ -42,12 +42,44 @@ Este projeto está configurado para deploy na plataforma Vercel. Siga os passos 
    vercel --prod
    ```
 
+## Uso como MCP Server (Model Context Protocol)
+
+Esta API também pode ser usada como um servidor MCP para integração com o Cursor e outras ferramentas compatíveis.
+
+### Configuração no Cursor
+
+Para usar esta API como um MCP Server no Cursor:
+
+1. Na interface do Cursor, vá para configurações (Settings)
+2. Encontre a seção "MCP Servers" ou "Integrations"
+3. Adicione um novo servidor com a URL:
+   ```
+   https://arxiv-api-backend.vercel.app/mcp
+   ```
+   ou sua URL personalizada, caso esteja hospedando em outro local.
+
+### Uso
+
+Uma vez configurado, você pode fazer consultas diretamente no Cursor:
+
+```
+Buscar machine learning
+```
+
+ou
+
+```
+Pesquisar quantum computing
+```
+
+O servidor MCP processará sua consulta e retornará os resultados mais relevantes do arXiv.
+
 ## Endpoints
 
 ### Buscar Artigos
 
 ```
-GET /api/arxiv/search
+GET /api/search
 ```
 
 #### Parâmetros
@@ -56,7 +88,7 @@ GET /api/arxiv/search
 |-------------|---------|-------------|--------------------------------------------------------|--------------|
 | query       | string  | Sim         | Termo de busca                                          | -            |
 | start       | integer | Não         | Índice inicial dos resultados                           | 0            |
-| max_results | integer | Não         | Número máximo de resultados (limitado a 100)            | 10           |
+| max_results | integer | Não         | Número máximo de resultados (limitado a 50)             | 10           |
 | sort_by     | string  | Não         | Critério de ordenação (relevance, lastUpdatedDate, submittedDate) | relevance    |
 | sort_order  | string  | Não         | Ordem da ordenação (ascending, descending)              | descending   |
 
@@ -64,13 +96,38 @@ GET /api/arxiv/search
 
 Busca simples:
 ```
-GET /api/arxiv/search?query=machine+learning
+GET /api/search?query=machine+learning
 ```
 
 Busca com parâmetros adicionais:
 ```
-GET /api/arxiv/search?query=ti:"deep learning" AND au:Goodfellow&start=0&max_results=20&sort_by=lastUpdatedDate&sort_order=descending
+GET /api/search?query=ti:"deep learning" AND au:Goodfellow&start=0&max_results=20&sort_by=lastUpdatedDate&sort_order=descending
 ```
+
+### MCP (Model Context Protocol)
+
+```
+POST /mcp
+```
+
+Endpoint compatível com o protocolo MCP para integração com o Cursor e outras ferramentas. Aceita requisições POST no formato JSON.
+
+#### Tipos de Requisição
+
+1. **Metadata**
+   ```json
+   {
+     "type": "metadata"
+   }
+   ```
+
+2. **Generate**
+   ```json
+   {
+     "type": "generate",
+     "input": "Buscar quantum computing"
+   }
+   ```
 
 ### Operadores de Busca
 
