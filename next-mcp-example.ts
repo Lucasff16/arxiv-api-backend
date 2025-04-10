@@ -105,8 +105,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Extrair a consulta
     let query = input;
-    if (input.toLowerCase().startsWith(("buscar ", "procurar ", "pesquisar ", "search "))) {
-      query = input.split(" ", 1)[1];
+    const prefixes = ["buscar ", "procurar ", "pesquisar ", "search "];
+    if (prefixes.some(prefix => input.toLowerCase().startsWith(prefix))) {
+      // Tentar extrair a consulta após o primeiro espaço
+      const parts = input.split(" ", 2);
+      if (parts.length > 1) {
+        query = parts[1];
+      }
     }
 
     // Configurar cabeçalhos SSE
