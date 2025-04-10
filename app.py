@@ -6,12 +6,13 @@ import time
 
 app = Flask(__name__)
 
-# Configuração CORS para permitir solicitações do Cursor
+# Configuração CORS mais completa para permitir solicitações do Cursor
 @app.after_request
 def add_cors_headers(response):
     response.headers['Access-Control-Allow-Origin'] = '*'
-    response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
-    response.headers['Access-Control-Allow-Methods'] = 'GET,POST,OPTIONS'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With, Accept'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+    response.headers['Access-Control-Max-Age'] = '3600'
     return response
 
 @app.route('/', methods=['GET'])
@@ -134,7 +135,12 @@ def search():
 # Endpoints do Model Context Protocol (MCP)
 @app.route('/mcp', methods=['OPTIONS'])
 def mcp_options():
-    return Response(status=200)
+    response = Response(status=200)
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With, Accept'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+    response.headers['Access-Control-Max-Age'] = '3600'
+    return response
 
 @app.route('/mcp', methods=['POST'])
 def mcp_handler():
@@ -162,7 +168,7 @@ def handle_metadata():
     metadata = {
         "type": "metadata_response",
         "metadata": {
-            "name": "ArXiv API Search",
+            "name": "ArXiv Search",
             "description": "API para buscar artigos científicos no repositório arXiv",
             "version": "1.0.0",
             "author": "Lucasff16",
@@ -172,12 +178,29 @@ def handle_metadata():
             }
         }
     }
-    return jsonify(metadata)
+    return Response(
+        json.dumps(metadata), 
+        mimetype='application/json',
+        headers={
+            'Access-Control-Allow-Origin': '*'
+        }
+    )
 
 def handle_generate(request_data):
     """Processa uma requisição de geração no formato MCP."""
     if 'input' not in request_data:
-        return jsonify({"error": "Campo 'input' não encontrado na requisição"}), 400
+        error_response = {
+            "type": "generate_response",
+            "response": "Erro: Campo 'input' não encontrado na requisição",
+            "done": True
+        }
+        return Response(
+            json.dumps(error_response),
+            mimetype='application/json',
+            headers={
+                'Access-Control-Allow-Origin': '*'
+            }
+        )
     
     input_text = request_data.get('input', '')
     
@@ -244,7 +267,13 @@ def handle_generate(request_data):
             "done": True
         }
         
-        return jsonify(mcp_response)
+        return Response(
+            json.dumps(mcp_response),
+            mimetype='application/json',
+            headers={
+                'Access-Control-Allow-Origin': '*'
+            }
+        )
         
     except Exception as e:
         error_response = {
@@ -252,7 +281,13 @@ def handle_generate(request_data):
             "response": f"Erro ao buscar no arXiv: {str(e)}",
             "done": True
         }
-        return jsonify(error_response)
+        return Response(
+            json.dumps(error_response),
+            mimetype='application/json',
+            headers={
+                'Access-Control-Allow-Origin': '*'
+            }
+        )
 
 if __name__ == '__main__':
     app.run() 
