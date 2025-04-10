@@ -122,12 +122,7 @@ def api_info():
         "documentation": "Consulte o README para mais detalhes"
     })
 
-# Configure o modo de produção para o ambiente Vercel
-app.config['ENV'] = 'production'
-app.config['DEBUG'] = False
-
 # O bloco abaixo só será executado quando rodarmos diretamente este arquivo
-# Na Vercel, o arquivo index.py importa este módulo, então este bloco não será executado lá
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(debug=True, host='0.0.0.0', port=port) 
