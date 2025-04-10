@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request, Response
+from flask import Flask, jsonify, request, Response, make_response
 import requests
 import feedparser
 import json
@@ -6,13 +6,23 @@ import time
 
 app = Flask(__name__)
 
-# Configuração CORS mais completa para permitir solicitações do Cursor
+# Configuração CORS global
 @app.after_request
 def add_cors_headers(response):
     response.headers['Access-Control-Allow-Origin'] = '*'
     response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With, Accept'
     response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
     response.headers['Access-Control-Max-Age'] = '3600'
+    return response
+
+# Rota específica para CORS preflight
+@app.route('/mcp', methods=['OPTIONS'])
+def handle_preflight():
+    response = make_response()
+    response.headers.add("Access-Control-Allow-Origin", "*")
+    response.headers.add("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept")
+    response.headers.add("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+    response.headers.add("Access-Control-Max-Age", "3600")
     return response
 
 @app.route('/', methods=['GET'])
@@ -132,36 +142,51 @@ def search():
     except Exception as e:
         return jsonify({"error": f"Erro ao processar a resposta: {str(e)}"}), 500
 
-# Endpoints do Model Context Protocol (MCP)
-@app.route('/mcp', methods=['OPTIONS'])
-def mcp_options():
-    response = Response(status=200)
-    response.headers['Access-Control-Allow-Origin'] = '*'
-    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With, Accept'
-    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
-    response.headers['Access-Control-Max-Age'] = '3600'
-    return response
-
-@app.route('/mcp', methods=['POST'])
+# Endpoint MCP unificado
+@app.route('/mcp', methods=['GET', 'POST'])
 def mcp_handler():
     """Endpoint principal para o protocolo MCP."""
     try:
+        # Para requisições GET, retornar informações básicas
+        if request.method == 'GET':
+            return jsonify({
+                "message": "Endpoint MCP para integração com o Cursor",
+                "instructions": "Envie uma requisição POST com o campo 'type' definido como 'metadata' ou 'generate'"
+            })
+        
+        # Para requisições POST
         request_data = request.json
         
-        # Tratamento específico para o tipo de chamada MCP
-        if 'type' not in request_data:
-            return jsonify({"error": "Campo 'type' não encontrado na requisição"}), 400
+        # Verificar se há dados JSON na requisição
+        if not request_data:
+            return jsonify({
+                "type": "error",
+                "error": "Requisição sem dados JSON válidos"
+            }), 400
         
-        # Verificar o tipo de requisição MCP
+        # Verificar se o tipo está presente
+        if 'type' not in request_data:
+            return jsonify({
+                "type": "error", 
+                "error": "Campo 'type' não encontrado na requisição"
+            }), 400
+        
+        # Processar de acordo com o tipo
         if request_data['type'] == 'metadata':
             return handle_metadata()
         elif request_data['type'] == 'generate':
             return handle_generate(request_data)
         else:
-            return jsonify({"error": f"Tipo de requisição MCP não suportado: {request_data['type']}"}), 400
+            return jsonify({
+                "type": "error",
+                "error": f"Tipo de requisição MCP não suportado: {request_data['type']}"
+            }), 400
             
     except Exception as e:
-        return jsonify({"error": f"Erro ao processar a requisição MCP: {str(e)}"}), 500
+        return jsonify({
+            "type": "error",
+            "error": f"Erro ao processar a requisição MCP: {str(e)}"
+        }), 500
 
 def handle_metadata():
     """Fornece metadados sobre o servidor MCP."""
@@ -178,29 +203,16 @@ def handle_metadata():
             }
         }
     }
-    return Response(
-        json.dumps(metadata), 
-        mimetype='application/json',
-        headers={
-            'Access-Control-Allow-Origin': '*'
-        }
-    )
+    return jsonify(metadata)
 
 def handle_generate(request_data):
     """Processa uma requisição de geração no formato MCP."""
     if 'input' not in request_data:
-        error_response = {
+        return jsonify({
             "type": "generate_response",
             "response": "Erro: Campo 'input' não encontrado na requisição",
             "done": True
-        }
-        return Response(
-            json.dumps(error_response),
-            mimetype='application/json',
-            headers={
-                'Access-Control-Allow-Origin': '*'
-            }
-        )
+        })
     
     input_text = request_data.get('input', '')
     
@@ -261,33 +273,18 @@ def handle_generate(request_data):
                 results_text += f"   Link: {link}\n\n"
         
         # Montar resposta no formato MCP
-        mcp_response = {
+        return jsonify({
             "type": "generate_response",
             "response": results_text,
             "done": True
-        }
-        
-        return Response(
-            json.dumps(mcp_response),
-            mimetype='application/json',
-            headers={
-                'Access-Control-Allow-Origin': '*'
-            }
-        )
+        })
         
     except Exception as e:
-        error_response = {
+        return jsonify({
             "type": "generate_response",
             "response": f"Erro ao buscar no arXiv: {str(e)}",
             "done": True
-        }
-        return Response(
-            json.dumps(error_response),
-            mimetype='application/json',
-            headers={
-                'Access-Control-Allow-Origin': '*'
-            }
-        )
+        })
 
 if __name__ == '__main__':
-    app.run() 
+    app.run(debug=True) 
